@@ -1,8 +1,7 @@
-# Document Intelligence
+# DocuLens
 
-A document-processing application that extracts structured
-information from receipts and invoices using computer vision
-and document analysis.
+DocuLens extracts structured information from receipts and invoices using
+computer vision, OCR, and document analysis.
 
 ## Planned Features
 
