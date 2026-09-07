@@ -1,4 +1,6 @@
 from collections.abc import Mapping, Sequence
+from pathlib import Path
+from shutil import which
 
 import cv2
 import numpy as np
@@ -6,6 +8,10 @@ import numpy as np
 from backend.app.ocr_models import OCRBlock
 
 REQUIRED_TESSERACT_KEYS = ("text", "left", "top", "width", "height", "conf")
+WINDOWS_TESSERACT_PATHS = (
+    Path("C:/Program Files/Tesseract-OCR/tesseract.exe"),
+    Path("C:/Program Files (x86)/Tesseract-OCR/tesseract.exe"),
+)
 
 
 def extract_text_blocks(image: np.ndarray) -> list[OCRBlock]:
@@ -68,10 +74,22 @@ def _image_to_tesseract_data(image: np.ndarray) -> Mapping[str, Sequence[object]
     except ImportError as exc:
         raise RuntimeError("pytesseract is required to run OCR") from exc
 
+    _configure_tesseract_command(pytesseract)
+
     try:
         return pytesseract.image_to_data(image, output_type=Output.DICT)
     except pytesseract.pytesseract.TesseractNotFoundError as exc:
         raise RuntimeError("Tesseract OCR is not installed or is not on PATH") from exc
+
+
+def _configure_tesseract_command(pytesseract_module) -> None:
+    if which("tesseract") is not None:
+        return
+
+    for path in WINDOWS_TESSERACT_PATHS:
+        if path.exists():
+            pytesseract_module.pytesseract.tesseract_cmd = str(path)
+            return
 
 
 def _validate_tesseract_data(data: Mapping[str, Sequence[object]]) -> None:

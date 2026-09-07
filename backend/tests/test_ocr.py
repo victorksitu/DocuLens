@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from backend.app import ocr
 from backend.app.ocr import extract_text_blocks, normalize_tesseract_data
 from backend.app.ocr_models import OCRBlock
 
@@ -71,6 +72,31 @@ def test_extract_text_blocks_rejects_unsupported_image_shapes() -> None:
 
     with pytest.raises(ValueError, match="grayscale or 3-channel color"):
         extract_text_blocks(image)
+
+
+def test_configure_tesseract_command_uses_default_windows_path(monkeypatch) -> None:
+    class FakePath:
+        def exists(self) -> bool:
+            return True
+
+        def __str__(self) -> str:
+            return "C:/Program Files/Tesseract-OCR/tesseract.exe"
+
+    class FakePytesseract:
+        class pytesseract:
+            tesseract_cmd = "tesseract"
+
+    tesseract_path = FakePath()
+
+    monkeypatch.setattr(ocr, "which", lambda _command: None)
+    monkeypatch.setattr(ocr, "WINDOWS_TESSERACT_PATHS", (tesseract_path,))
+
+    ocr._configure_tesseract_command(FakePytesseract)
+
+    assert (
+        FakePytesseract.pytesseract.tesseract_cmd
+        == "C:/Program Files/Tesseract-OCR/tesseract.exe"
+    )
 
 
 def test_normalize_tesseract_data_converts_rows_to_ocr_blocks() -> None:
@@ -197,3 +223,5 @@ def test_normalize_tesseract_data_rejects_mismatched_column_lengths() -> None:
 
     with pytest.raises(ValueError, match="same length"):
         normalize_tesseract_data(data)
+
+
