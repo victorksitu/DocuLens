@@ -2,10 +2,13 @@ from argparse import ArgumentParser, Namespace
 from collections.abc import Sequence
 from pathlib import Path
 
+import numpy as np
+
 from backend.app.image_loader import load_image
 from backend.app.ocr import extract_text_blocks
 from backend.app.ocr_models import OCRBlock
-from backend.app.preprocessing import preprocess_image
+from backend.app.ocr_visualization import draw_ocr_blocks
+from backend.app.preprocessing import preprocess_image, save_processed_image
 
 
 def parse_args(argv: Sequence[str] | None = None) -> Namespace:
@@ -45,7 +48,41 @@ def parse_args(argv: Sequence[str] | None = None) -> Namespace:
         default=127,
         help="Pixel cutoff for thresholding. Pixels above this become white.",
     )
+    parser.add_argument(
+        "--annotate-output",
+        type=Path,
+        help="Optional path where an OCR bounding-box preview should be saved.",
+    )
+    parser.add_argument(
+        "--annotate-labels",
+        action="store_true",
+        help="Draw detected text labels above OCR boxes in the preview image.",
+    )
     return parser.parse_args(argv)
+
+
+def run_ocr_pipeline(
+    input_path: str | Path,
+    max_width: int = 1600,
+    max_height: int = 1600,
+    apply_denoise: bool = False,
+    denoise_kernel_size: int = 3,
+    apply_threshold: bool = False,
+    threshold_value: int = 127,
+) -> tuple[np.ndarray, list[OCRBlock]]:
+    image = load_image(input_path)
+    processed_image = preprocess_image(
+        image,
+        max_width=max_width,
+        max_height=max_height,
+        apply_denoise=apply_denoise,
+        denoise_kernel_size=denoise_kernel_size,
+        apply_threshold=apply_threshold,
+        threshold_value=threshold_value,
+    )
+    blocks = extract_text_blocks(processed_image)
+
+    return processed_image, blocks
 
 
 def run_ocr_on_local_image(
@@ -57,9 +94,8 @@ def run_ocr_on_local_image(
     apply_threshold: bool = False,
     threshold_value: int = 127,
 ) -> list[OCRBlock]:
-    image = load_image(input_path)
-    processed_image = preprocess_image(
-        image,
+    _processed_image, blocks = run_ocr_pipeline(
+        input_path,
         max_width=max_width,
         max_height=max_height,
         apply_denoise=apply_denoise,
@@ -67,7 +103,17 @@ def run_ocr_on_local_image(
         apply_threshold=apply_threshold,
         threshold_value=threshold_value,
     )
-    return extract_text_blocks(processed_image)
+    return blocks
+
+
+def save_ocr_preview(
+    image: np.ndarray,
+    blocks: Sequence[OCRBlock],
+    output_path: str | Path,
+    include_labels: bool = False,
+) -> Path:
+    annotated = draw_ocr_blocks(image, blocks, include_labels=include_labels)
+    return save_processed_image(annotated, output_path)
 
 
 def print_ocr_blocks(blocks: Sequence[OCRBlock]) -> None:
@@ -89,7 +135,7 @@ def print_ocr_blocks(blocks: Sequence[OCRBlock]) -> None:
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
-    blocks = run_ocr_on_local_image(
+    processed_image, blocks = run_ocr_pipeline(
         args.input_path,
         max_width=args.max_width,
         max_height=args.max_height,
@@ -99,6 +145,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         threshold_value=args.threshold_value,
     )
     print_ocr_blocks(blocks)
+
+    if args.annotate_output is not None:
+        saved_path = save_ocr_preview(
+            processed_image,
+            blocks,
+            args.annotate_output,
+            include_labels=args.annotate_labels,
+        )
+        print(f"Saved OCR preview to {saved_path}")
 
 
 def _format_confidence(confidence: float | None) -> str:
