@@ -1,5 +1,7 @@
+import json
 from argparse import ArgumentParser, Namespace
 from collections.abc import Sequence
+from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
@@ -9,6 +11,7 @@ from backend.app.ocr import extract_text_blocks
 from backend.app.ocr_models import OCRBlock
 from backend.app.ocr_visualization import draw_ocr_blocks
 from backend.app.preprocessing import preprocess_image, save_processed_image
+from backend.app.total_extractor import extract_total
 
 
 def parse_args(argv: Sequence[str] | None = None) -> Namespace:
@@ -57,6 +60,11 @@ def parse_args(argv: Sequence[str] | None = None) -> Namespace:
         "--annotate-labels",
         action="store_true",
         help="Draw detected text labels above OCR boxes in the preview image.",
+    )
+    parser.add_argument(
+        "--json-output",
+        type=Path,
+        help="Optional JSON output path for OCR blocks and the extracted total.",
     )
     return parser.parse_args(argv)
 
@@ -133,6 +141,22 @@ def print_ocr_blocks(blocks: Sequence[OCRBlock]) -> None:
         )
 
 
+def save_ocr_results(blocks: Sequence[OCRBlock], output_path: str | Path) -> Path:
+    """Save OCR evidence and total extraction, using null for a missing total."""
+    output_path = Path(output_path)
+    if output_path.suffix.lower() != ".json":
+        raise ValueError("OCR results output path must use the .json extension")
+
+    total = extract_total(blocks)
+    results = {
+        "blocks": [asdict(block) for block in blocks],
+        "fields": {"total": asdict(total) if total is not None else None},
+    }
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
+    return output_path
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     processed_image, blocks = run_ocr_pipeline(
@@ -145,6 +169,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         threshold_value=args.threshold_value,
     )
     print_ocr_blocks(blocks)
+
+    if args.json_output is not None:
+        saved_path = save_ocr_results(blocks, args.json_output)
+        print(f"Saved OCR results to {saved_path}")
 
     if args.annotate_output is not None:
         saved_path = save_ocr_preview(

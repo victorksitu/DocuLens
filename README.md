@@ -21,7 +21,9 @@ Milestone 1 can load local JPG/PNG images, resize when needed, convert to graysc
 
 Milestone 2 can run local Tesseract OCR, normalize detected text into OCR blocks, preserve bounding boxes and confidence, and save annotated OCR preview images.
 
-Field extraction, validation, API, database, frontend, ML training, and Docker are not implemented yet.
+Milestone 3 can extract a total amount from OCR blocks and save it, its confidence/review metadata, and the OCR blocks as JSON using `--json-output` in the OCR script.
+
+Other fields, business-rule validation, API, database, frontend, ML training, and Docker are not implemented yet.
 
 ## Docs
 

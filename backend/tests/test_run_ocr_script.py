@@ -1,6 +1,10 @@
+import json
+from dataclasses import asdict
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
+import pytest
 
 from backend.app.ocr_models import OCRBlock
 from backend.scripts import run_ocr
@@ -197,4 +201,89 @@ def test_main_passes_cli_options_to_pipeline_and_saves_preview(
     assert '"TOTAL" x=10 y=20 width=30 height=12 confidence=0.96' in output
     assert "Saved OCR preview to " in output
     assert "ocr_boxes.png" in output
+
+
+def test_main_saves_total_and_ocr_evidence_to_json(monkeypatch, capsys) -> None:
+    blocks = [
+        OCRBlock("TOTAL", 10, 20, 50, 12, 0.96),
+        OCRBlock("$22.55", 100, 20, 60, 12, 0.92),
+    ]
+    monkeypatch.setattr(
+        run_ocr, "run_ocr_pipeline",
+        lambda *_args, **_kwargs: (np.zeros((50, 200), dtype=np.uint8), blocks),
+    )
+    with TemporaryDirectory(dir=Path(__file__).parent) as directory:
+        output_path = Path(directory) / "nested" / "results.json"
+        run_ocr.main(["receipt.png", "--json-output", str(output_path)])
+        results = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert results["blocks"] == [asdict(block) for block in blocks]
+    assert results["fields"]["total"] == {
+        "field_name": "total",
+        "value": "22.55",
+        "source_text": "TOTAL $22.55",
+        "ocr_confidence": 0.92,
+        "extraction_confidence": 0.9,
+        "needs_review": False,
+    }
+    assert "Saved OCR results to" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("blocks", [[], [OCRBlock("Store", 10, 20, 50, 12)]])
+def test_main_saves_null_when_total_is_missing(monkeypatch, blocks) -> None:
+    monkeypatch.setattr(
+        run_ocr, "run_ocr_pipeline",
+        lambda *_args, **_kwargs: (np.zeros((50, 200), dtype=np.uint8), blocks),
+    )
+    with TemporaryDirectory(dir=Path(__file__).parent) as directory:
+        output_path = Path(directory) / "results.json"
+        run_ocr.main(["receipt.png", "--json-output", str(output_path)])
+        results = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert results == {
+        "blocks": [asdict(block) for block in blocks],
+        "fields": {"total": None},
+    }
+
+
+def test_save_ocr_results_preserves_review_flag_and_unknown_confidence() -> None:
+    blocks = [
+        OCRBlock("TOTAL", 10, 20, 50, 12),
+        OCRBlock("22.55", 100, 20, 60, 12, 0.4),
+    ]
+    with TemporaryDirectory(dir=Path(__file__).parent) as directory:
+        output_path = Path(directory) / "results.JSON"
+        assert run_ocr.save_ocr_results(blocks, output_path) == output_path
+        results = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert results["fields"]["total"]["needs_review"] is True
+    assert results["fields"]["total"]["ocr_confidence"] is None
+
+
+def test_save_ocr_results_rejects_non_json_path() -> None:
+    with pytest.raises(ValueError, match=".json extension"):
+        run_ocr.save_ocr_results([], "results.png")
+
+
+def test_save_ocr_results_propagates_write_failure(monkeypatch) -> None:
+    def fail_write(*_args, **_kwargs):
+        raise PermissionError("Cannot write results")
+
+    monkeypatch.setattr(Path, "write_text", fail_write)
+    with TemporaryDirectory(dir=Path(__file__).parent) as directory:
+        with pytest.raises(PermissionError, match="Cannot write results"):
+            run_ocr.save_ocr_results([], Path(directory) / "results.json")
+
+
+def test_main_without_json_option_does_not_save_results(monkeypatch) -> None:
+    monkeypatch.setattr(
+        run_ocr, "run_ocr_pipeline",
+        lambda *_args, **_kwargs: (np.zeros((20, 40), dtype=np.uint8), []),
+    )
+
+    def unexpected_save(*_args, **_kwargs):
+        pytest.fail("JSON saving should be opt-in")
+
+    monkeypatch.setattr(run_ocr, "save_ocr_results", unexpected_save)
+    run_ocr.main(["receipt.png"])
 
