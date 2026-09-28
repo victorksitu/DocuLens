@@ -2,7 +2,7 @@
 
 Milestone 2 takes a local document image that has been prepared by the preprocessing layer and runs OCR while preserving text location and confidence.
 
-The OCR layer turns image text into normalized OCR blocks. The script now also supports Milestone 3 total extraction through an optional JSON export.
+The OCR layer turns image text into normalized OCR blocks. The script also supports Milestone 3 field extraction through an optional JSON export.
 
 ## Current Flow
 
@@ -14,7 +14,7 @@ local JPG/PNG path
     -> normalize raw OCR rows into OCRBlock objects
     -> print detected text, box coordinates, and confidence
     -> optionally save an annotated bounding-box preview
-    -> optionally extract the total and save OCR blocks plus fields as JSON
+    -> optionally extract six document fields and save OCR blocks plus fields as JSON
 ```
 
 ## Files
@@ -84,15 +84,16 @@ python -m backend.scripts.run_ocr sample_data/synthetic/synthetic_receipt.png --
 
 Generated outputs should go in `processed/`, which is ignored by Git.
 
-Save OCR blocks and the extracted total as JSON:
+Save OCR blocks and extracted fields as JSON:
 
 ```bash
 python -m backend.scripts.run_ocr sample_data/synthetic/synthetic_receipt.png --json-output processed/synthetic_receipt_results.json
 ```
 
 The JSON contains `blocks` (original OCR text, coordinates, and confidence) and
-`fields.total` (value, source text, OCR confidence, extraction confidence, and
-`needs_review`). A missing total is saved as `"total": null`; it is not an error.
+`fields` with vendor, invoice_number, date, subtotal, tax, and total. Each present
+field contains value, source text, OCR confidence, extraction confidence, and
+`needs_review`. Missing fields are saved as `null`; this is not an error.
 Amounts remain strings. Extraction confidence is a rule score, not a measured
 probability. Review flags are extraction hints, not business-rule validation.
 
@@ -158,9 +159,9 @@ Denoising can help with speckled images, but it can also blur or alter small tex
 
 - Local JPG/PNG images only.
 - No PDF input yet.
-- Total extraction supports English labels and amounts with two decimal places;
+- Amount extraction supports English labels and amounts with two decimal places;
   amounts must occupy one OCR block. Layout matching uses fixed pixel tolerances.
-- No extraction of vendor, date, invoice number, subtotal, or tax yet.
+- See [field extraction](field_extraction.md) for date, invoice number, and vendor limitations.
 - No business-rule validation yet.
 - No API, database, frontend, ML training, or Docker yet.
 - OCR quality depends on the local Tesseract installation and the input image quality.
@@ -168,4 +169,4 @@ Denoising can help with speckled images, but it can also blur or alter small tex
 
 ## Next Step
 
-Continue Milestone 3 with subtotal and tax extraction after reviewing total extraction on sample documents.
+Milestone 4 will add business-rule validation, including arithmetic checks.

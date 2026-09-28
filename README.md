@@ -21,11 +21,12 @@ Milestone 1 can load local JPG/PNG images, resize when needed, convert to graysc
 
 Milestone 2 can run local Tesseract OCR, normalize detected text into OCR blocks, preserve bounding boxes and confidence, and save annotated OCR preview images.
 
-Milestone 3 can extract a total amount from OCR blocks and save it, its confidence/review metadata, and the OCR blocks as JSON using `--json-output` in the OCR script.
+Milestone 3 is implemented: rule-based extraction of vendor, invoice number, date, subtotal, tax, and total. The OCR script saves all six fields, confidence/review metadata, and the original OCR blocks as JSON using `--json-output`. Missing fields are `null`.
 
-Other fields, business-rule validation, API, database, frontend, ML training, and Docker are not implemented yet.
+Extraction supports a limited set of English labels and document layouts. Ambiguous dates and inferred vendor names require review. Business-rule validation, API, database, frontend, ML training, and Docker are not implemented yet.
 
 ## Docs
 
 - [Preprocessing workflow](docs/preprocessing.md)
 - [OCR workflow](docs/ocr.md)
+- [Field extraction workflow and limitations](docs/field_extraction.md)

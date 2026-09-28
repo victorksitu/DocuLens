@@ -240,9 +240,10 @@ def test_main_saves_null_when_total_is_missing(monkeypatch, blocks) -> None:
         run_ocr.main(["receipt.png", "--json-output", str(output_path)])
         results = json.loads(output_path.read_text(encoding="utf-8"))
 
-    assert results == {
-        "blocks": [asdict(block) for block in blocks],
-        "fields": {"total": None},
+    assert results["blocks"] == [asdict(block) for block in blocks]
+    assert results["fields"]["total"] is None
+    assert set(results["fields"]) == {
+        "vendor", "invoice_number", "date", "subtotal", "tax", "total"
     }
 
 
